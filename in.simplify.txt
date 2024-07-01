@@ -1,0 +1,58 @@
+#variable
+variable        rdm     equal  7
+
+units metal
+dimension       3
+boundary        p p p 
+
+atom_style atomic
+atom_modify map yes
+newton on
+
+read_data       water.data    # 6C 1H 8O
+
+pair_style mace no_domain_decomposition
+pair_coeff * * lps.macl.model.pt O H
+
+group           water         type  1  2
+group           oxygen        type  1
+group           hydrogen      type  2
+#设置区域Region，handly part constant temperature
+# region          r_dst         block  ${dst_left}   ${dst_right}  INF  INF   INF  INF 
+# group           g_dst         dynamic    oxygen     region    r_dst     every   1
+
+neighbor        2     bin 
+neigh_modify    delay   0 every 1 check yes 
+#neigh_modify    exclude  group  graphene   graphene
+
+thermo_style    custom step  temp   etotal pe ke evdwl ecoul  press
+thermo          100 
+
+timestep        1
+
+velocity        water  create  300   ${rdm}  mom  yes  rot yes  dist  gaussian  units   box 
+
+
+fix             2  water  nvt     temp 300 300 100  # iso  1 1 1000
+# fix             1  solution  npt   temp  300.0 300.0 100.0  z  0  0  1000.0
+
+dump            1  all atom  10000  01_relax.lammpstrj
+
+balance         1.2 shift xyz 5 1.1
+run             1000000
+
+
+# unfix 2
+# fix             3  water  nvt     temp 300 300 100 
+# run             1000000
+
+undump  1
+reset_timestep 0 
+compute omsd  oxygen msd com yes
+dump            2  all atom  10000  run.lammpstrj
+thermo_style    custom step  temp c_omsd[*]  etotal pe ke evdwl ecoul  press
+
+run             2000000
+write_data      collect.data
+write_restart   collect.eq
+# undump          1
